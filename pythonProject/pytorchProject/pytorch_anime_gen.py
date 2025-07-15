@@ -5,21 +5,15 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset
 import torchvision.transforms as transforms
-from  torch.distributions.multivariate_normal import MultivariateNormal
 from torch.optim import lr_scheduler
 from tqdm import tqdm
-from IPython import display
 import torchvision.utils as vutils
 import matplotlib.pyplot as plt
 from PIL import Image
 from torchvision.transforms import ToPILImage
 import os
-from os import listdir
-from pathlib import Path
-import imghdr
-import skillsnetwork
 
 
 latent_vector_size = 128
@@ -240,8 +234,7 @@ D.load_state_dict(torch.load("D_trained.pth", map_location=torch.device('cpu')))
 G = Generator()
 G.load_state_dict(torch.load("G_trained.pth", map_location=torch.device('cpu')))
 
-# latent_vector_size=128
 z = torch.randn(batch_size, latent_vector_size, 1, 1)
 
-# Xhat = G(z).detach()
-# plot_image_batch(Xhat)
+Xhat = G(z).detach()
+plot_image_batch(Xhat)

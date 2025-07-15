@@ -21,24 +21,57 @@ from pathlib import Path
 import imghdr
 import skillsnetwork
 
-class Discriminator(nn.Module):
-    def __init__(self,input_dim=1):
-        super(Discriminator,self).__init__()
-        self.l1=nn.Linear(1,input_dim)
-    
-    def forward(self, x):
-        return torch.sigmoid(self.l1(x))
 
-D=Discriminator() 
+latent_vector_size = 128
 
 class Generator(nn.Module):
-    def __init__(self,input_dim=1):
-        super(Generator,self).__init__()
-        self.l1=nn.Linear(1,input_dim)
+    def __init__(self):
+        super(Generator, self).__init__()
+        self.main = nn.Sequential(
+            nn.ConvTranspose2d(latent_vector_size, 64 * 8, 4, 1, 0, bias=False),
+            nn.BatchNorm2d(64 * 8),
+            nn.ReLU(True),
+            nn.ConvTranspose2d(64 * 8, 64 * 4, 4, 2, 1, bias=False),
+            nn.BatchNorm2d(64 * 4),
+            nn.ReLU(True),
+            nn.ConvTranspose2d(64 * 4, 64 * 2, 4, 2, 1, bias=False),
+            nn.BatchNorm2d(64 * 2),
+            nn.ReLU(True),
+            nn.ConvTranspose2d(64 * 2, 64, 4, 2, 1, bias=False),
+            nn.BatchNorm2d(64),
+            nn.ReLU(True),
+            nn.ConvTranspose2d(64, 3, 4, 2, 1, bias=False),
+            nn.Tanh()
+        )
+ 
+    def forward(self, input):
+        output = self.main(input)
+        return output
     
-    def forward(self, x):
-        return self.l1(x)
-G=Generator()
+
+class Discriminator(nn.Module):
+    def __init__(self):
+        super(Discriminator, self).__init__()
+        self.main = nn.Sequential(
+            nn.Conv2d(3, 64, 4, 2, 1, bias=False),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Conv2d(64, 64 * 2, 4, 2, 1, bias=False),
+            nn.BatchNorm2d(64 * 2),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Conv2d(64 * 2, 64 * 4, 4, 2, 1, bias=False),
+            nn.BatchNorm2d(64 * 4),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Conv2d(64 * 4, 64 * 8, 4, 2, 1, bias=False),
+            nn.BatchNorm2d(64 * 8),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Conv2d(64 * 8, 1, 4, 1, 0, bias=False),
+            nn.Sigmoid(),
+            nn.Flatten()
+        )
+ 
+    def forward(self, input):
+        output = self.main(input)
+        return output
 
 def plot_distribution(real_data,generated_data,discriminator=None,density=True):
     
@@ -66,6 +99,8 @@ def plot_image_batch(my_batch):
   
           ax.imshow(np.transpose(vutils.make_grid(my_batch[img_num].to(device), padding=2, normalize=True).cpu(),(1,2,0)))
   plt.show()
+
+D = Discriminator().to(device)
 
 def get_accuracy(X,Xhat):
     total=0
@@ -115,4 +150,98 @@ dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size,shuffle=
 real_batch = next(iter(dataloader))
 real_batch.shape
 
-plot_image_batch(real_batch)
+G = Generator().to(device)
+
+learning_rate = 0.0002
+G_optimizer = optim.Adam(G.parameters(), lr = learning_rate, betas=(0.5, 0.999))
+D_optimizer = optim.Adam(D.parameters(), lr = learning_rate, betas=(0.5, 0.999))
+scheduler_G = lr_scheduler.StepLR(G_optimizer, step_size=10, gamma=0.1)
+scheduler_D = lr_scheduler.StepLR(D_optimizer, step_size=10, gamma=0.1)
+
+def weights_init(m):
+    classname = m.__class__.__name__
+    if classname.find('Conv') != -1:
+        torch.nn.init.normal_(m.weight, 0.0, 0.02)
+    elif classname.find('BatchNorm') != -1:
+        torch.nn.init.normal_(m.weight, 1.0, 0.02)
+        torch.nn.init.zeros_(m.bias) 
+
+D.apply(weights_init)
+G.apply(weights_init)
+
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from tqdm import tqdm
+
+# Set device
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+# Define hyperparameters
+LOSS_G = []
+LOSS_D = []
+epochs = 1
+epsilon = 100
+
+criterion=nn.BCELoss()
+
+# Training loop
+train = False
+if train:
+    for epoch in tqdm(range(epochs)):
+        print(epoch)
+        for real_data in dataloader:
+            real_data = real_data.to(device)
+            noise =torch.randn(batch_size, latent_vector_size, 1, 1, device=device)
+            fake_data = G(noise)
+            
+            # Discriminator predictions for real and fake data
+            real_predictions = D(real_data)
+            fake_predictions = D(fake_data)
+    
+            # Discriminator loss for real and fake data
+            loss_D_real = criterion(real_predictions, torch.ones(len(real_predictions), 1).to(device))
+            loss_D_fake = criterion(fake_predictions, torch.zeros(len(fake_predictions), 1).to(device))
+            
+            # Overall discriminator loss
+            loss_D = (loss_D_fake + loss_D_real) / 2
+            LOSS_D.append(loss_D.detach().item())
+            
+            # Backpropagation and optimizer update for discriminator
+            D.zero_grad()
+            loss_D.backward(retain_graph=True)
+            D_optimizer.step()
+            
+            # Training the generator
+            output = D(fake_data)
+            loss_G = criterion(output, torch.ones(len(output), 1).to(device))
+            LOSS_G.append(loss_G.detach().item())
+        
+            # Backpropagation and optimizer update for generator
+            G.zero_grad()
+            loss_G.backward()
+            G_optimizer.step()
+        
+        # Using LR Scheduler
+        scheduler_G.step()
+        scheduler_D.step()
+        
+        # Displaying Images
+        Xhat = G(noise).to(device).detach()
+        plot_image_batch(Xhat)
+        print("Epoch:", epoch)
+        
+        # Saving the model
+        torch.save(D.state_dict(), 'D.pth')
+        torch.save(G.state_dict(), 'G.pth')
+
+D = Discriminator()
+D.load_state_dict(torch.load("D_trained.pth", map_location=torch.device('cpu')))
+G = Generator()
+G.load_state_dict(torch.load("G_trained.pth", map_location=torch.device('cpu')))
+
+# latent_vector_size=128
+z = torch.randn(batch_size, latent_vector_size, 1, 1)
+
+# Xhat = G(z).detach()
+# plot_image_batch(Xhat)

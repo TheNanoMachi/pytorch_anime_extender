@@ -66,6 +66,26 @@ class Discriminator(nn.Module):
     def forward(self, input):
         output = self.main(input)
         return output
+    
+class Dataset(Dataset):
+    def __init__(self, transform=None):
+      current_directory = os.getcwd()
+      directory=os.path.join(current_directory ,'images')
+
+      self.file_paths = [os.path.join(directory,filename) for filename in os.listdir(directory) if filename.endswith('.jpg') ]
+      self.transform = transform
+
+    def __len__(self):
+        return len(self.file_paths)
+
+    def __getitem__(self, index):
+        image_path = self.file_paths[index]
+        image = Image.open(image_path)
+
+        if self.transform:
+            image = self.transform(image)
+
+        return image
 
 def plot_distribution(real_data,generated_data,discriminator=None,density=True):
     
@@ -104,29 +124,19 @@ def get_accuracy(X,Xhat):
     total+=py_x.mean()
     return total/2
 
+def weights_init(m):
+    classname = m.__class__.__name__
+    if classname.find('Conv') != -1:
+        torch.nn.init.normal_(m.weight, 0.0, 0.02)
+    elif classname.find('BatchNorm') != -1:
+        torch.nn.init.normal_(m.weight, 1.0, 0.02)
+        torch.nn.init.zeros_(m.bias) 
+
 current_directory = os.getcwd()
 directory=os.path.join(current_directory ,'images')
 [filename for filename in os.listdir(directory) if filename.endswith('.jpg') ]
 
-class Dataset(Dataset):
-    def __init__(self, transform=None):
-      current_directory = os.getcwd()
-      directory=os.path.join(current_directory ,'images')
 
-      self.file_paths = [os.path.join(directory,filename) for filename in os.listdir(directory) if filename.endswith('.jpg') ]
-      self.transform = transform
-
-    def __len__(self):
-        return len(self.file_paths)
-
-    def __getitem__(self, index):
-        image_path = self.file_paths[index]
-        image = Image.open(image_path)
-
-        if self.transform:
-            image = self.transform(image)
-
-        return image
 dataset=Dataset()
 
 image_size = 64
@@ -152,21 +162,9 @@ D_optimizer = optim.Adam(D.parameters(), lr = learning_rate, betas=(0.5, 0.999))
 scheduler_G = lr_scheduler.StepLR(G_optimizer, step_size=10, gamma=0.1)
 scheduler_D = lr_scheduler.StepLR(D_optimizer, step_size=10, gamma=0.1)
 
-def weights_init(m):
-    classname = m.__class__.__name__
-    if classname.find('Conv') != -1:
-        torch.nn.init.normal_(m.weight, 0.0, 0.02)
-    elif classname.find('BatchNorm') != -1:
-        torch.nn.init.normal_(m.weight, 1.0, 0.02)
-        torch.nn.init.zeros_(m.bias) 
-
 D.apply(weights_init)
 G.apply(weights_init)
 
-import torch
-import torch.nn as nn
-import torch.optim as optim
-from tqdm import tqdm
 
 # Set device
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

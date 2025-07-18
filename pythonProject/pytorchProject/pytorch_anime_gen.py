@@ -87,20 +87,6 @@ class Dataset(Dataset):
 
         return image
 
-def plot_distribution(real_data,generated_data,discriminator=None,density=True):
-    
-    plt.hist(real_data.numpy(), 100, density=density, facecolor='g', alpha=0.75, label='real data')
-    plt.hist(generated_data.numpy(), 100, density=density, facecolor='r', alpha=0.75,label='generated data q(z) ')
-    
-    if discriminator:
-        max_=torch.max(real_data.max(),generated_data.max().detach())
-        min_=torch.min(real_data.min(),generated_data.min().detach())
-        x=torch.linspace(start=min_, end=max_, steps=100)
-        plt.plot(x.numpy(),discriminator(x.view(-1,1)).detach().view(-1).numpy(),label='discriminator',color='k')
-        plt.plot(x.numpy(),0.5*np.ones(x.shape),label='0.5',color='b')
-        plt.legend()
-        plt.show()
-
 device = torch.device("cpu")
 def plot_image_batch(my_batch):
 
@@ -115,14 +101,6 @@ def plot_image_batch(my_batch):
   plt.show()
 
 D = Discriminator().to(device)
-
-def get_accuracy(X,Xhat):
-    total=0
-    py_x=D(X)
-    total=py_x.mean()
-    py_x=D(Xhat)
-    total+=py_x.mean()
-    return total/2
 
 def weights_init(m):
     classname = m.__class__.__name__
@@ -156,7 +134,7 @@ real_batch.shape
 
 G = Generator().to(device)
 
-learning_rate = 0.0001
+learning_rate = 0.0002
 G_optimizer = optim.Adam(G.parameters(), lr = learning_rate, betas=(0.5, 0.999))
 D_optimizer = optim.Adam(D.parameters(), lr = learning_rate, betas=(0.5, 0.999))
 scheduler_G = lr_scheduler.StepLR(G_optimizer, step_size=10, gamma=0.1)
@@ -221,7 +199,6 @@ for epoch in tqdm(range(epochs)):
     Xhat = G(noise).to(device).detach()
     plot_image_batch(Xhat)
     print("Epoch:", epoch)
-    print(get_accuracy(real_data, Xhat))
     
     # Saving the model
     torch.save(D.state_dict(), 'D.pth')

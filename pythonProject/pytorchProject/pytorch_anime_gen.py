@@ -178,60 +178,54 @@ epsilon = 100
 criterion=nn.BCELoss()
 
 # Training loop
-train = False
-if train:
-    for epoch in tqdm(range(epochs)):
-        print(epoch)
-        for real_data in dataloader:
-            real_data = real_data.to(device)
-            noise =torch.randn(batch_size, latent_vector_size, 1, 1, device=device)
-            fake_data = G(noise)
-            
-            # Discriminator predictions for real and fake data
-            real_predictions = D(real_data)
-            fake_predictions = D(fake_data)
+
+for epoch in tqdm(range(epochs)):
+    print(epoch)
+    for real_data in dataloader:
+        real_data = real_data.to(device)
+        noise =torch.randn(batch_size, latent_vector_size, 1, 1, device=device)
+        fake_data = G(noise)
+        
+        # Discriminator predictions for real and fake data
+        real_predictions = D(real_data)
+        fake_predictions = D(fake_data)
+
+        # Discriminator loss for real and fake data
+        loss_D_real = criterion(real_predictions, torch.ones(len(real_predictions), 1).to(device))
+        loss_D_fake = criterion(fake_predictions, torch.zeros(len(fake_predictions), 1).to(device))
+        
+        # Overall discriminator loss
+        loss_D = (loss_D_fake + loss_D_real) / 2
+        LOSS_D.append(loss_D.detach().item())
+        
+        # Backpropagation and optimizer update for discriminator
+        D.zero_grad()
+        loss_D.backward(retain_graph=True)
+        D_optimizer.step()
+        
+        # Training the generator
+        output = D(fake_data)
+        loss_G = criterion(output, torch.ones(len(output), 1).to(device))
+        LOSS_G.append(loss_G.detach().item())
     
-            # Discriminator loss for real and fake data
-            loss_D_real = criterion(real_predictions, torch.ones(len(real_predictions), 1).to(device))
-            loss_D_fake = criterion(fake_predictions, torch.zeros(len(fake_predictions), 1).to(device))
-            
-            # Overall discriminator loss
-            loss_D = (loss_D_fake + loss_D_real) / 2
-            LOSS_D.append(loss_D.detach().item())
-            
-            # Backpropagation and optimizer update for discriminator
-            D.zero_grad()
-            loss_D.backward(retain_graph=True)
-            D_optimizer.step()
-            
-            # Training the generator
-            output = D(fake_data)
-            loss_G = criterion(output, torch.ones(len(output), 1).to(device))
-            LOSS_G.append(loss_G.detach().item())
-        
-            # Backpropagation and optimizer update for generator
-            G.zero_grad()
-            loss_G.backward()
-            G_optimizer.step()
-        
-        # Using LR Scheduler
-        scheduler_G.step()
-        scheduler_D.step()
-        
-        # Displaying Images
-        Xhat = G(noise).to(device).detach()
-        plot_image_batch(Xhat)
-        print("Epoch:", epoch)
-        print(get_accuracy(real_data, Xhat))
-        
-        # Saving the model
-        torch.save(D.state_dict(), 'D.pth')
-        torch.save(G.state_dict(), 'G.pth')
-else:
-    D = Discriminator()
-    D.load_state_dict(torch.load("D_trained.pth", map_location=torch.device('cpu')))
-    G = Generator()
-    G.load_state_dict(torch.load("G_trained.pth", map_location=torch.device('cpu')))
+        # Backpropagation and optimizer update for generator
+        G.zero_grad()
+        loss_G.backward()
+        G_optimizer.step()
+    
+    # Using LR Scheduler
+    scheduler_G.step()
+    scheduler_D.step()
+    
+    # Displaying Images
+    Xhat = G(noise).to(device).detach()
+    plot_image_batch(Xhat)
+    print("Epoch:", epoch)
+    print(get_accuracy(real_data, Xhat))
+    
+    # Saving the model
+    torch.save(D.state_dict(), 'D.pth')
+    torch.save(G.state_dict(), 'G.pth')
 
 z = torch.randn(batch_size, latent_vector_size, 1, 1)
 

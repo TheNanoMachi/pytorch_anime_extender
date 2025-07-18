@@ -146,7 +146,7 @@ real_batch.shape
 
 G = Generator().to(device)
 
-learning_rate = 0.0002
+learning_rate = 0.0001
 G_optimizer = optim.Adam(G.parameters(), lr = learning_rate, betas=(0.5, 0.999))
 D_optimizer = optim.Adam(D.parameters(), lr = learning_rate, betas=(0.5, 0.999))
 scheduler_G = lr_scheduler.StepLR(G_optimizer, step_size=10, gamma=0.1)
@@ -224,15 +224,16 @@ if train:
         Xhat = G(noise).to(device).detach()
         plot_image_batch(Xhat)
         print("Epoch:", epoch)
+        print(get_accuracy(real_data, Xhat))
         
         # Saving the model
         torch.save(D.state_dict(), 'D.pth')
         torch.save(G.state_dict(), 'G.pth')
-
-D = Discriminator()
-D.load_state_dict(torch.load("D_trained.pth", map_location=torch.device('cpu')))
-G = Generator()
-G.load_state_dict(torch.load("G_trained.pth", map_location=torch.device('cpu')))
+else:
+    D = Discriminator()
+    D.load_state_dict(torch.load("D_trained.pth", map_location=torch.device('cpu')))
+    G = Generator()
+    G.load_state_dict(torch.load("G_trained.pth", map_location=torch.device('cpu')))
 
 z = torch.randn(batch_size, latent_vector_size, 1, 1)
 
